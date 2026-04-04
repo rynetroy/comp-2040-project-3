@@ -16,12 +16,12 @@ The analysis focuses on uncovering patterns across time, industry, and location 
 
 ---
 
-## 📊 Dataset  
+##  Dataset  
 - **Source:** City of Winnipeg Open Data  
 - **Dataset:** Business Licenses  
 - **Records:** 7,300+ business licenses  
 
-**Key Fields:**  
+** Key Fields:**  
 - `Status` (Active, Expired, Cancelled)  
 - `Issue Date`, `Expiry Date`  
 - `Neighbourhood Name`  
