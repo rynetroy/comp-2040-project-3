@@ -1,42 +1,110 @@
-# COMP - 2040: Final Project  
-# **Name:** Troy Dela Rosa  
-# **SID#** 0213352  
-# **Date** April 10, 2026  
-# **Instructor:** Chris Mac  
-# **WEEK 13:** Source file
+"""
+Helper functions for Downtown Winnipeg structural change analysis.
 
+Author: Troy Dela Rosa
+Course: COMP-2040
+"""
 
 import pandas as pd
 
-def clean_column_names(df):
-    """
-    Standardize column names by converting to lowercase and replacing spaces with underscores.
 
-    This improves consistency and makes column referencing easier during analysis.
-    """
-    df.columns = df.columns.str.lower().str.replace(" ", "_")
+def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy of df with lowercase, underscore-style column names."""
+    df = df.copy()
+    df.columns = (
+        df.columns.str.strip()
+        .str.lower()
+        .str.replace(" ", "_")
+        .str.replace(r"[^\w]", "_", regex=True)
+        .str.replace(r"_+", "_", regex=True)
+        .str.strip("_")
+    )
     return df
 
 
-def create_is_closed(df):
-    """
-    Create a binary column 'is_closed' to identify inactive businesses.
+def filter_downtown(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep only Downtown business license rows."""
+    df = df.copy()
+    return df[df["community_characterization_area"] == "Downtown"].copy()
 
-    A business is considered closed if its status is:
-    'Closed (L)', 'Ceased Operation', or 'Cancelled'.
 
-    This serves as a proxy for business closure since no explicit field exists.
-    """
-    closed_status = ["Closed (L)", "Ceased Operation", "Cancelled"]
-    df["is_closed"] = df["status"].isin(closed_status)
+def create_is_closed(df: pd.DataFrame) -> pd.DataFrame:
+    """Create a binary closed flag from business license status."""
+    df = df.copy()
+    closed_statuses = {"Closed (L)", "Ceased Operation", "Cancelled", "Vacant"}
+    df["is_closed"] = df["status"].isin(closed_statuses)
     return df
 
 
-def filter_downtown(df):
-    """
-    Filter dataset to include only downtown records.
+def assign_phase(year: int) -> str:
+    """Assign structural phase from year."""
+    if year < 2015:
+        return "Pre-2015 establishment"
+    elif year <= 2020:
+        return "2015–2020 transition"
+    return "2020+ restructuring"
 
-    Uses the 'community_characterization_area' field to isolate
-    businesses located in downtown Winnipeg.
-    """
-    return df[df["community_characterization_area"] == "Downtown"]
+
+def clean_gantt(df: pd.DataFrame, today: str = "2026-04-13") -> pd.DataFrame:
+    """Clean Gantt dataset and add analysis fields."""
+    df = df.copy()
+
+    df["start_date"] = pd.to_datetime(df["start_date"], errors="coerce")
+    df["end_date"] = pd.to_datetime(df["end_date"], errors="coerce")
+
+    today_ts = pd.Timestamp(today)
+    df["end_date"] = df["end_date"].fillna(today_ts)
+
+    df["duration_days"] = (df["end_date"] - df["start_date"]).dt.days
+    df["year_start"] = df["start_date"].dt.year
+    df["year_end"] = df["end_date"].dt.year
+    df["phase"] = df["year_start"].apply(assign_phase)
+
+    impact_map = {
+        "Growth": "Growth",
+        "Infrastructure": "Growth",
+        "Adaptive Reuse": "Growth",
+        "Transition": "Transition",
+        "Policy": "Transition",
+    }
+    df["impact"] = df["category"].map(impact_map).fillna("Transition")
+
+    completed_kw = ["Completed", "Adopted", "Demolished", "Active"]
+    df["is_done"] = df["status"].apply(
+        lambda s: any(kw in str(s) for kw in completed_kw)
+    )
+
+    return df
+
+
+def compute_units_mid(df: pd.DataFrame) -> pd.DataFrame:
+    """Add midpoint unit estimate from low/high bounds."""
+    df = df.copy()
+    df["units_mid"] = (df["units_low"] + df["units_high"]) / 2
+    return df
+
+
+def clean_housing(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Clean housing dataset and return full and model-ready versions."""
+    df = df.copy()
+    df = compute_units_mid(df)
+    housing_model = df[df["include_in_model"]].copy()
+    return df, housing_model
+
+
+def clean_business_licenses(df: pd.DataFrame) -> pd.DataFrame:
+    """Clean business license dataset for downtown analysis."""
+    df = clean_column_names(df)
+    df = filter_downtown(df)
+
+    df["issue_date"] = pd.to_datetime(
+        df["issue_date"],
+        format="%Y %b %d %I:%M:%S %p",
+        errors="coerce"
+    )
+
+    df = df.dropna(subset=["issue_date"]).copy()
+    df["year"] = df["issue_date"].dt.year
+    df = create_is_closed(df)
+
+    return df
