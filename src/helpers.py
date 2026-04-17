@@ -1134,7 +1134,6 @@ def plot_spatial_event_map(
 
     return fig, ax
 
-
 def summarize_spatial_quadrants(df: pd.DataFrame) -> None:
     """
     Print east-west category counts using original longitude values.
@@ -1144,3 +1143,250 @@ def summarize_spatial_quadrants(df: pd.DataFrame) -> None:
 
     print("Projects per neighbourhood quadrant (by lon):")
     print(df.groupby(["east_west", "category"]).size().to_string())
+
+
+def compute_dhs(housing: pd.DataFrame) -> dict:
+    """
+    Compute the Downtown Health Score (DHS) and return component scores.
+    """
+    housing_calc = housing[housing["include_in_model"]].copy()
+
+    if "units_mid" not in housing_calc.columns:
+        housing_calc["units_mid"] = (
+            housing_calc["units_low"] + housing_calc["units_high"]
+        ) / 2
+
+    business_stability = 42
+
+    completed = housing_calc[housing_calc["phase_status"] == "Completed"]["units_mid"].sum()
+    pipeline = housing_calc[housing_calc["phase_status"] != "Completed"]["units_mid"].sum()
+    built_score = min(100, completed / 6)
+    pipeline_score = min(100, pipeline / 8)
+    pop_score = 65
+
+    residential_demand = int(
+        0.40 * built_score
+        + 0.40 * pipeline_score
+        + 0.20 * pop_score
+    )
+
+    investment_pipeline = 78
+    spatial_anchoring = 72
+    vacancy_distress = 8
+
+    dhs = (
+        0.25 * business_stability
+        + 0.25 * residential_demand
+        + 0.25 * investment_pipeline
+        + 0.15 * spatial_anchoring
+        - 0.10 * vacancy_distress
+    )
+    dhs = round(dhs, 1)
+
+    band = (
+        "Stable Transition (65+)" if dhs >= 65
+        else "Mixed/Transitional (50-64)" if dhs >= 50
+        else "Stagnating (<50)"
+    )
+
+    return {
+        "business_stability": business_stability,
+        "residential_demand": residential_demand,
+        "investment_pipeline": investment_pipeline,
+        "spatial_anchoring": spatial_anchoring,
+        "vacancy_distress": vacancy_distress,
+        "dhs": dhs,
+        "band": band,
+        "completed_units_mid": completed,
+        "pipeline_units_mid": pipeline,
+        "built_score": built_score,
+        "pipeline_score": pipeline_score,
+        "pop_score": pop_score,
+    }
+def prepare_dhs_gauge_data(dhs_result: dict) -> tuple[list[tuple], float, str]:
+    """
+    Prepare component tuples and final band label for the DHS gauge figure.
+
+    Parameters:
+        dhs_result: Output dictionary from compute_dhs().
+
+    Returns:
+        comp_viz: List of component tuples for plotting
+        dhs: Final DHS score
+        band: Final band label
+    """
+    comp_viz = [
+        ("Business\nStability", dhs_result["business_stability"], 100, 0.25, "DECLINE_C_PLACEHOLDER"),
+        ("Residential\nDemand", dhs_result["residential_demand"], 100, 0.25, "GROWTH_C_PLACEHOLDER"),
+        ("Investment\nPipeline", dhs_result["investment_pipeline"], 100, 0.25, "GROWTH_C_PLACEHOLDER"),
+        ("Spatial\nAnchoring", dhs_result["spatial_anchoring"], 100, 0.15, "TRANS_C_PLACEHOLDER"),
+        ("Vacancy &\nDistress", dhs_result["vacancy_distress"], 10, -0.10, "DECLINE_C_PLACEHOLDER"),
+    ]
+
+    return comp_viz, dhs_result["dhs"], dhs_result["band"]
+
+
+def plot_dhs_gauges(
+    dhs_result: dict,
+    growth_color: str,
+    transition_color: str,
+    decline_color: str,
+    accent_color: str,
+    save_path: str | None = None
+):
+    """
+    Plot the DHS component gauges and final score panel.
+    """
+    fig, axes = plt.subplots(2, 3, figsize=(16, 9))
+    axes = axes.flatten()
+
+    comp_viz = [
+        ("Business\nStability", dhs_result["business_stability"], 100, 0.25, decline_color),
+        ("Residential\nDemand", dhs_result["residential_demand"], 100, 0.25, growth_color),
+        ("Investment\nPipeline", dhs_result["investment_pipeline"], 100, 0.25, growth_color),
+        ("Spatial\nAnchoring", dhs_result["spatial_anchoring"], 100, 0.15, transition_color),
+        ("Vacancy &\nDistress", dhs_result["vacancy_distress"], 10, -0.10, decline_color),
+    ]
+
+    for idx, (name, score, max_val, weight, color) in enumerate(comp_viz):
+        ax = axes[idx]
+
+        theta_bg = np.linspace(0, np.pi, 100)
+        ax.plot(
+            np.cos(theta_bg), np.sin(theta_bg),
+            color="#2a2e3a", linewidth=14, alpha=0.4, solid_capstyle="round"
+        )
+
+        fill = score / max_val
+        theta_fill = np.linspace(0, np.pi * fill, 100)
+        ax.plot(
+            np.cos(theta_fill), np.sin(theta_fill),
+            color=color, linewidth=14, alpha=0.85, solid_capstyle="round"
+        )
+
+        prefix = "−" if weight < 0 else ""
+        ax.text(0, 0.2, f"{prefix}{score}", ha="center", va="center",
+                fontsize=32, fontweight="bold", color=color)
+        ax.text(0, -0.15, f"/{max_val}", ha="center", va="center",
+                fontsize=13, color="#8a8780")
+        ax.text(0, -0.55, name, ha="center", va="center",
+                fontsize=11, fontweight="bold", color="#e0ddd5")
+        ax.text(0, -0.85, f"{prefix}{abs(int(weight * 100))}% weight",
+                ha="center", va="center", fontsize=9, color="#8a8780")
+        ax.set_xlim(-1.3, 1.3)
+        ax.set_ylim(-1.1, 1.2)
+        ax.axis("off")
+
+    ax = axes[5]
+    dhs = dhs_result["dhs"]
+    band = dhs_result["band"]
+    band_color = growth_color if dhs >= 65 else accent_color if dhs >= 50 else decline_color
+
+    ax.text(0, 0.4, f"{dhs}", ha="center", va="center",
+            fontsize=52, fontweight="bold", color=band_color)
+    ax.text(0, -0.1, "/100", ha="center", va="center",
+            fontsize=16, color="#8a8780")
+    ax.text(0, -0.45, "Downtown Health Score", ha="center", va="center",
+            fontsize=12, fontweight="bold", color="#e0ddd5")
+    ax.text(0, -0.75, band, ha="center", va="center",
+            fontsize=10, color=band_color, fontstyle="italic")
+
+    theta = np.linspace(0, 2 * np.pi, 200)
+    ax.plot(np.cos(theta) * 1.05, np.sin(theta) * 1.05,
+            color=band_color, linewidth=3, alpha=0.4)
+    ax.set_xlim(-1.3, 1.3)
+    ax.set_ylim(-1.1, 1.4)
+    ax.axis("off")
+
+    fig.suptitle("DHS — Component Gauges [L4 — SCENARIO]",
+                 fontsize=15, fontweight="bold", y=1.01)
+    plt.tight_layout()
+
+    if save_path is not None:
+        plt.savefig(save_path, bbox_inches="tight", facecolor="#0d0f14")
+
+    return fig, axes
+
+def prepare_dhs_scenarios(residential_demand: int) -> tuple[dict[str, list[int]], list[float]]:
+    """
+    Prepare DHS sensitivity scenarios and weights.
+
+    Parameters:
+        residential_demand: Current residential demand score from DHS.
+
+    Returns:
+        scenarios: Dictionary of scenario component values
+        weights: DHS component weights
+    """
+    scenarios = {
+        "Current Assessment": [42, residential_demand, 78, 72, 8],
+        "Pessimistic: Projects Delay 2+ Yrs": [35, int(residential_demand * 0.6), 55, 60, 9],
+        "Optimistic: On-Time + Recovery": [58, int(residential_demand * 1.15), 85, 80, 6],
+        "Stagnation: Pipeline Stalls": [30, 40, 40, 50, 9],
+    }
+    weights = [0.25, 0.25, 0.25, 0.15, -0.10]
+
+    return scenarios, weights
+
+def plot_dhs_sensitivity(
+    scenarios: dict[str, list[int]],
+    weights: list[float],
+    growth_color: str,
+    accent_color: str,
+    decline_color: str,
+    save_path: str | None = None
+):
+    """
+    Plot DHS sensitivity analysis as a horizontal bar chart.
+    """
+    fig, ax = plt.subplots(figsize=(12, 5))
+
+    names = list(scenarios.keys())
+    scores = [round(sum(c * w for c, w in zip(v, weights)), 1) for v in scenarios.values()]
+    colors = [
+        growth_color if s >= 65 else accent_color if s >= 50 else decline_color if s >= 30 else "#7a3535"
+        for s in scores
+    ]
+
+    bars = ax.barh(
+        range(len(names)),
+        scores,
+        color=colors,
+        alpha=0.85,
+        height=0.55,
+        edgecolor="none"
+    )
+
+    for i, (bar, s) in enumerate(zip(bars, scores)):
+        ax.text(
+            bar.get_width() + 0.8, i, f"{s}",
+            va="center", fontsize=12, fontweight="bold", color="#e0ddd5"
+        )
+
+    for thresh, lbl, c in [
+        (65, "Stable transition", growth_color),
+        (50, "Mixed/transitional", accent_color),
+        (30, "Stagnating", decline_color),
+    ]:
+        ax.axvline(x=thresh, color=c, linewidth=1, linestyle=":", alpha=0.5)
+        ax.text(thresh + 0.5, len(names) - 0.3, lbl, fontsize=7.5, color=c, alpha=0.7)
+
+    ax.set_yticks(range(len(names)))
+    ax.set_yticklabels(names, fontsize=10)
+    ax.set_xlabel("Downtown Health Score")
+    ax.set_title(
+        "DHS Sensitivity Analysis: Four Scenarios [L4 — SCENARIO]",
+        fontsize=14,
+        fontweight="bold",
+        pad=15,
+        y=1.07
+    )
+    ax.set_xlim(0, 100)
+    ax.grid(axis="x", alpha=0.3)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+
+    if save_path is not None:
+        plt.savefig(save_path, bbox_inches="tight", facecolor="#0d0f14")
+
+    return fig, ax, scores
