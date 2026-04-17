@@ -6,6 +6,9 @@ Course: COMP-2040
 """
 
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 
 def preview_dataset(
@@ -624,6 +627,307 @@ def plot_vacancy_benchmark(
         "4 Winnipeg years are interpolated estimates.",
         transform=ax.transAxes, fontsize=7.5, color="#8a8780", va="bottom"
     )
+
+    plt.tight_layout()
+
+    if save_path is not None:
+        plt.savefig(save_path, bbox_inches="tight", facecolor="#0d0f14")
+
+    return fig, ax
+
+def prepare_category_phase_matrix(
+    gantt: pd.DataFrame,
+    phase_order: list[str] | None = None
+) -> pd.DataFrame:
+    """
+    Build a category-by-phase count matrix from the cleaned Gantt dataset.
+
+    Parameters:
+        gantt: Cleaned Gantt DataFrame.
+        phase_order: Optional ordered list of phases.
+
+    Returns:
+        Crosstab DataFrame of category counts by phase.
+    """
+    if phase_order is None:
+        phase_order = [
+            "Pre-2015 establishment",
+            "2015–2020 transition",
+            "2020+ restructuring",
+        ]
+
+    ct = pd.crosstab(gantt["category"], gantt["phase"])
+    ct = ct.reindex(columns=phase_order, fill_value=0)
+    ct = ct.loc[ct.sum(axis=1).sort_values(ascending=False).index]
+
+    return ct
+
+
+def plot_category_phase_matrix(
+    ct: pd.DataFrame,
+    save_path: str | None = None
+):
+    """
+    Plot the category-by-phase heatmap.
+    """
+    fig, ax = plt.subplots(figsize=(6, 4))
+
+    im = ax.imshow(ct.values, cmap="YlOrRd", aspect="auto", vmin=0)
+
+    ax.set_xticks(range(len(ct.columns)))
+    ax.set_xticklabels(
+        [
+            "Pre-2015\nEstablishment",
+            "2015–2020\nTransition",
+            "2020+\nRestructuring",
+        ],
+        fontsize=10
+    )
+    ax.set_yticks(range(len(ct)))
+    ax.set_yticklabels(ct.index, fontsize=10)
+
+    for i in range(len(ct)):
+        for j in range(len(ct.columns)):
+            val = ct.values[i, j]
+            if val > 0:
+                ax.text(
+                    j, i, str(val),
+                    ha="center", va="center",
+                    fontsize=12, fontweight="bold",
+                    color="#0d0f14" if val >= 2 else "#e0ddd5"
+                )
+
+    ax.set_title(
+        "Category × Phase Distribution [L3 - INFERRED]",
+        fontsize=14, fontweight="bold", pad=15
+    )
+    plt.colorbar(im, ax=ax, label="Event count", shrink=0.7)
+    plt.tight_layout()
+
+    if save_path is not None:
+        plt.savefig(save_path, bbox_inches="tight", facecolor="#0d0f14")
+
+    return fig, ax
+
+def prepare_residential_pipeline_plot_data(
+    housing: pd.DataFrame
+) -> tuple[pd.DataFrame, list[str]]:
+    """
+    Prepare model-ready housing data and labels for the residential pipeline chart.
+    """
+    housing_model = housing[housing["include_in_model"]].copy()
+
+    if "units_mid" not in housing_model.columns:
+        housing_model["units_mid"] = (
+            housing_model["units_low"] + housing_model["units_high"]
+        ) / 2
+
+    short_labels = [
+        "225 Carlton\n(TNS)",
+        "300 Main",
+        "Portage Place\nPh.1",
+        "Wehwehneh\n(Bay Bldg)",
+        "Belgica Block\n+ Alloway",
+        "St. Charles\nHotel",
+        "Maw's Garage\n/ Sanford",
+    ]
+
+    return housing_model, short_labels
+
+
+def plot_residential_pipeline(
+    housing_model: pd.DataFrame,
+    short_labels: list[str],
+    growth_color: str,
+    transition_color: str,
+    accent_color: str,
+    save_path: str | None = None
+):
+    """
+    Plot the residential pipeline by project and by status share.
+    """
+    status_colors = {
+        "Completed": growth_color,
+        "Under Construction": transition_color,
+        "Planned": accent_color,
+    }
+
+    fig, (ax1, ax2) = plt.subplots(
+        1, 2, figsize=(15, 6),
+        gridspec_kw={"width_ratios": [2, 1]}
+    )
+
+    for i, (_, row) in enumerate(housing_model.iterrows()):
+        c = status_colors.get(row["phase_status"], "#7a7a7a")
+        ax1.bar(i, row["units_mid"], color=c, alpha=0.85, width=0.65, edgecolor="none")
+
+        if row["units_low"] != row["units_high"]:
+            ax1.plot(
+                [i, i], [row["units_low"], row["units_high"]],
+                color="#e0ddd5", lw=1.5, alpha=0.6
+            )
+            for bound in [row["units_low"], row["units_high"]]:
+                ax1.plot(
+                    [i - 0.12, i + 0.12], [bound, bound],
+                    color="#e0ddd5", lw=1, alpha=0.5
+                )
+
+        ax1.text(
+            i, row["units_mid"] + 15, f"~{int(row['units_mid'])}",
+            ha="center", fontsize=9, color="#e0ddd5"
+        )
+
+    ax1.set_xticks(range(len(housing_model)))
+    ax1.set_xticklabels(short_labels, fontsize=9)
+    ax1.set_ylabel("Residential Units")
+    ax1.set_title(
+        "Residential Pipeline by Project [L1/L2]",
+        fontsize=12, fontweight="bold", pad=12
+    )
+    ax1.grid(axis="y", alpha=0.3)
+
+    handles = [mpatches.Patch(color=v, label=k) for k, v in status_colors.items()]
+    ax1.legend(handles=handles, fontsize=8, framealpha=0.3, edgecolor="none")
+
+    ax1.text(
+        0.01, 0.02,
+        "Model-ready rows only. Aggregate infill row (200-400 units) excluded.",
+        transform=ax1.transAxes, fontsize=7, color="#8a8780", va="bottom"
+    )
+
+    status_totals = housing_model.groupby("phase_status")["units_mid"].sum()
+    colors_pie = [status_colors.get(s, "#7a7a7a") for s in status_totals.index]
+
+    wedges, texts, autotexts = ax2.pie(
+        status_totals.values,
+        labels=status_totals.index,
+        colors=colors_pie,
+        autopct="%1.0f%%",
+        wedgeprops=dict(width=0.45, edgecolor="#0d0f14", linewidth=2),
+        startangle=140,
+        pctdistance=0.75
+    )
+
+    for t in texts:
+        t.set_color("#e0ddd5")
+        t.set_fontsize(9)
+
+    for t in autotexts:
+        t.set_color("#e0ddd5")
+        t.set_fontsize(8)
+        t.set_fontweight("bold")
+
+    ax2.set_title(
+        f"Units by Status\n(Total: ~{int(housing_model['units_mid'].sum())})",
+        fontsize=11, fontweight="bold", pad=12
+    )
+
+    plt.tight_layout()
+
+    if save_path is not None:
+        plt.savefig(save_path, bbox_inches="tight", facecolor="#0d0f14")
+
+    return fig, (ax1, ax2)
+
+def prepare_investment_scale_data() -> pd.DataFrame:
+    """
+    Return the manually compiled major capital project table used in the investment chart.
+    """
+    inv = pd.DataFrame({
+        "Project": [
+            "Portage Place\nRedevelopment",
+            "True North Square\n(all phases)",
+            "Canadian Museum\nfor Human Rights",
+            "Wehwehneh\nBahgahkinahgohn",
+            "RBC Convention\nCentre Expansion",
+            "Wawanesa\nHeadquarters",
+            "Railside at\nThe Forks (Ph.1)",
+            "300 Main\nResidential",
+            "308 Colony\n(Solara Flats)",
+            "St. Charles Hotel\n(est.)*",
+            "Maw's Garage /\nSanford Bldg (est.)*",
+            "Portage & Main\nReopening",
+        ],
+        "Amount_M": [650, 400, 351, 310, 180, 100, 100, 80, 77, 49, 40, 21],
+        "Phase": [
+            "2020+ restructuring",
+            "2015–2020 transition",
+            "Pre-2015 establishment",
+            "2020+ restructuring",
+            "Pre-2015 establishment",
+            "2020+ restructuring",
+            "2020+ restructuring",
+            "2020+ restructuring",
+            "2020+ restructuring",
+            "2020+ restructuring",
+            "2020+ restructuring",
+            "2020+ restructuring",
+        ],
+        "Done": [False, True, True, False, True, True, False, True, True, False, False, True],
+        "Confirmed": [True, True, True, True, True, True, False, True, True, False, False, True],
+    })
+    return inv
+
+
+def plot_investment_scale(
+    inv: pd.DataFrame,
+    phase_colors: dict[str, str],
+    save_path: str | None = None
+):
+    """
+    Plot the major capital projects bar chart with confirmed vs estimated styling.
+    """
+    fig, ax = plt.subplots(figsize=(13, 7.5))
+
+    for i, row in inv.iterrows():
+        bar_color = phase_colors[row["Phase"]] if row["Confirmed"] else "#7a6e52"
+        ax.barh(
+            i, row["Amount_M"], height=0.6,
+            color=bar_color,
+            alpha=0.9 if row["Done"] else 0.55,
+            edgecolor="none"
+        )
+
+        suffix = "" if row["Done"] else " (in progress)"
+        est_tag = " [est.]" if not row["Confirmed"] else ""
+        ax.text(
+            row["Amount_M"] + 8, i,
+            f"${row['Amount_M']}M{suffix}{est_tag}",
+            va="center", fontsize=9,
+            color="#e0ddd5" if row["Confirmed"] else "#8a8780"
+        )
+
+    ax.set_yticks(range(len(inv)))
+    ax.set_yticklabels(inv["Project"], fontsize=9)
+    ax.set_xlabel("Investment ($ Millions)")
+
+    confirmed_total = inv[inv["Confirmed"]]["Amount_M"].sum()
+    estimated_total = inv[~inv["Confirmed"]]["Amount_M"].sum()
+
+    ax.set_title(
+        f"Major Capital Projects — Confirmed: ${confirmed_total:,}M + Est.: ~${estimated_total}M [L1/L2]",
+        fontsize=13, fontweight="bold", pad=15
+    )
+    ax.set_xlim(0, 900)
+    ax.grid(axis="x", alpha=0.3)
+
+    ax.text(
+        0.01, 0.01,
+        "* St. Charles Hotel ($49M) and Maw's Garage ($40M) are cost-per-unit estimates (~$350K/unit); "
+        "total project costs not confirmed in sources. Railside Ph.1 also estimated. "
+        "All other values from press releases; actual expenditures may differ.",
+        transform=ax.transAxes, fontsize=7, color="#8a8780", va="bottom", wrap=True
+    )
+
+    handles = [
+        mpatches.Patch(color=phase_colors[p], label=p)
+        for p in ["Pre-2015 establishment", "2015–2020 transition", "2020+ restructuring"]
+    ]
+    handles.append(
+        mpatches.Patch(color="#7a6e52", alpha=0.55, label="2020+ restructuring (cost estimated)")
+    )
+
+    ax.legend(handles=handles, loc="upper right", framealpha=0.3, edgecolor="none", fontsize=9)
 
     plt.tight_layout()
 
