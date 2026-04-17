@@ -70,11 +70,42 @@ def create_is_closed(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def summarize_business_license_overview(df: pd.DataFrame) -> None:
+    """
+    Print a raw business-license overview after column cleaning and downtown filtering.
+    """
+    print("=== BUSINESS LICENSES (downtown only) ===")
+    print(f"Downtown rows:   {len(df)}")
+    print()
+
+    print("Columns:")
+    print(list(df.columns))
+    print()
+
+    print("Status values:")
+    print(df["status"].value_counts().to_string())
+    print()
+
+    print("Issue Date sample (raw format):")
+    print(df["issue_date"].head(3).to_string())
+
+
+def summarize_source_registry(df: pd.DataFrame) -> None:
+    """Print a summary of the source provenance registry."""
+    print(f"Total sources: {len(df)}")
+    print(f"  Core inputs (directly feed model): {df['usage_type'].eq('core_input').sum()}")
+    print(f"  Model-ready:                       {df['model_ready'].sum()}")
+    print(f"  Corroboration sources:             {df['is_corroboration'].sum()}")
+
+    print("\nBy source category:")
+    print(df["source_category"].value_counts().to_string())
+
+
 def assign_phase(year: int) -> str:
     """Assign structural phase from year."""
     if year < 2015:
         return "Pre-2015 establishment"
-    elif year <= 2020:
+    if year <= 2020:
         return "2015–2020 transition"
     return "2020+ restructuring"
 
@@ -149,18 +180,6 @@ def prepare_housing_prediction_data(
 ) -> tuple[pd.DataFrame, list[str], str]:
     """
     Prepare the housing pipeline dataset for the prediction section.
-
-    Encodes confidence and source quality as numeric features, defines the
-    feature set and target column, and drops rows with missing values.
-
-    Parameters:
-        df: Input housing DataFrame.
-
-    Returns:
-        A tuple containing:
-        - prepared prediction DataFrame
-        - list of feature column names
-        - target column name
     """
     df = df.copy()
 
@@ -190,4 +209,3 @@ def prepare_housing_prediction_data(
 
     df = df.dropna(subset=features + [target]).copy()
     return df, features, target
-
