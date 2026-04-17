@@ -8,6 +8,40 @@ Course: COMP-2040
 import pandas as pd
 
 
+def preview_dataset(
+    df: pd.DataFrame,
+    title: str,
+    preview_cols: list[str] | None = None,
+    n: int = 3
+) -> None:
+    """
+    Print a quick overview of a dataset.
+
+    Parameters:
+        df: DataFrame to inspect.
+        title: Label shown at the top of the preview.
+        preview_cols: Optional list of columns to show in sample rows.
+        n: Number of rows to preview.
+    """
+    print(f"=== {title} ===")
+    print(f"Shape: {df.shape}")
+    print()
+
+    print("Columns and types:")
+    print(df.dtypes.to_string())
+    print()
+
+    print("Missing values per column:")
+    print(df.isnull().sum().to_string())
+    print()
+
+    print(f"First {n} rows:")
+    if preview_cols is not None:
+        print(df[preview_cols].head(n).to_string(index=False))
+    else:
+        print(df.head(n).to_string(index=False))
+
+
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
     """Return a copy of df with lowercase, underscore-style column names."""
     df = df.copy()
@@ -108,3 +142,52 @@ def clean_business_licenses(df: pd.DataFrame) -> pd.DataFrame:
     df = create_is_closed(df)
 
     return df
+
+
+def prepare_housing_prediction_data(
+    df: pd.DataFrame
+) -> tuple[pd.DataFrame, list[str], str]:
+    """
+    Prepare the housing pipeline dataset for the prediction section.
+
+    Encodes confidence and source quality as numeric features, defines the
+    feature set and target column, and drops rows with missing values.
+
+    Parameters:
+        df: Input housing DataFrame.
+
+    Returns:
+        A tuple containing:
+        - prepared prediction DataFrame
+        - list of feature column names
+        - target column name
+    """
+    df = df.copy()
+
+    conf_map = {
+        "high": 2,
+        "medium_high": 2,
+        "medium": 1,
+        "low_medium": 0,
+        "low": 0,
+    }
+    sq_map = {
+        "strong": 2,
+        "moderate": 1,
+        "weak": 0,
+    }
+
+    df["confidence_encoded"] = df["confidence"].map(conf_map).fillna(1)
+    df["source_quality_encoded"] = df["source_quality"].map(sq_map).fillna(1)
+
+    features = [
+        "units_mid",
+        "completion_year_low",
+        "confidence_encoded",
+        "source_quality_encoded",
+    ]
+    target = "phase_status"
+
+    df = df.dropna(subset=features + [target]).copy()
+    return df, features, target
+
