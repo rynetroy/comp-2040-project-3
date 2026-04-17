@@ -935,3 +935,212 @@ def plot_investment_scale(
         plt.savefig(save_path, bbox_inches="tight", facecolor="#0d0f14")
 
     return fig, ax
+
+def prepare_gantt_timeline_data(gantt: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare the cleaned Gantt dataset for timeline plotting.
+
+    Sorts events by phase, start year, and impact so the timeline reads clearly.
+    """
+    df_g = gantt.sort_values(
+        ["phase", "year_start", "impact"],
+        ascending=[True, True, False]
+    ).reset_index(drop=True)
+
+    return df_g
+
+
+def plot_gantt_timeline(
+    df_g: pd.DataFrame,
+    type_colors: dict[str, str],
+    accent_color: str,
+    save_path: str | None = None
+):
+    """
+    Plot the structural event timeline with phase separators, source-quality opacity,
+    and a January 2026 reference line.
+    """
+    fig, ax = plt.subplots(figsize=(14, 10))
+
+    opacity_map = {"strong": 0.95, "moderate": 0.65, "weak": 0.35}
+    prev_phase = None
+    portage_label = "Portage Place"
+
+    for i, row in df_g.iterrows():
+        start = row["year_start"]
+        dur = max(row["year_end"] - start, 0.35)
+        c = type_colors.get(row["category"], "#7a7a7a")
+        sq = str(row.get("source_quality", "moderate"))
+        base_alpha = opacity_map.get(sq, 0.65)
+
+        if portage_label in str(row["task_name"]) and not row["is_done"]:
+            hatch = "///"
+            alpha = base_alpha
+        else:
+            hatch = "" if row["is_done"] else "///"
+            alpha = base_alpha if row["is_done"] else base_alpha * 0.6
+
+        ax.barh(
+            i, dur, left=start, height=0.6,
+            color=c, alpha=alpha,
+            edgecolor="#2a2e3a", linewidth=0.5, hatch=hatch
+        )
+
+        label = str(row["task_name"])
+        if len(label) > 40:
+            label = label[:38] + "…"
+
+        txt_color = "#C2BCAB" if sq != "weak" else "#6a6a6a"
+        ax.text(start + dur + 0.1, i, label, va="center", fontsize=7.5, color=txt_color)
+
+        if row["phase"] != prev_phase and prev_phase is not None:
+            ax.axhline(y=i - 0.5, color="#847D6E", linewidth=0.4, alpha=0.4, linestyle="--")
+        prev_phase = row["phase"]
+
+    jan_2026_x = 2026.0
+    ax.axvline(x=jan_2026_x, color=accent_color, linewidth=0.8, linestyle="--", alpha=0.9)
+    ax.text(
+        jan_2026_x + 0.1, len(df_g) - 0.5, "Jan 2026",
+        color=accent_color, fontsize=8, va="top", fontstyle="italic"
+    )
+
+    ax.set_xlim(2006, 2033)
+    ax.set_xlabel("Year")
+    ax.set_title(
+        "Downtown Winnipeg: Structural Event Timeline [L1/L2]",
+        fontsize=14, fontweight="bold", pad=15
+    )
+    ax.grid(axis="x", alpha=0.3)
+    ax.set_yticks([])
+
+    type_patches = [
+        mpatches.Patch(color=type_colors[t], label=t)
+        for t in ["Growth", "Infrastructure", "Transition", "Adaptive Reuse", "Policy"]
+    ]
+    prog_patch = mpatches.Patch(
+        facecolor="#555", hatch="///", edgecolor="#8a8780",
+        label="In progress (hatched)"
+    )
+    jan_line = plt.Line2D(
+        [0], [0], color=accent_color, linewidth=1.5, linestyle="--",
+        label="Jan 2026 reference line"
+    )
+
+    ax.legend(
+        handles=type_patches + [prog_patch, jan_line],
+        loc="lower right", framealpha=0.3, edgecolor="none", fontsize=8
+    )
+
+    ax.text(
+        0.01, 0.01,
+        "Bar opacity = source quality (full=strong, faded=weak).",
+        transform=ax.transAxes, fontsize=7, color="#8a8780", va="bottom"
+    )
+
+    plt.tight_layout()
+
+    if save_path is not None:
+        plt.savefig(save_path, bbox_inches="tight", facecolor="#0d0f14")
+
+    return fig, ax
+
+def prepare_spatial_event_data(
+    filepath: str,
+    x_shift: int = 120,
+    y_shift: int = -20
+) -> tuple[pd.DataFrame, "gpd.GeoDataFrame"]:
+    """
+    Load downtown project coordinates, clean them, convert to GeoDataFrame,
+    and apply a small manual geometry shift for map alignment.
+    """
+    import geopandas as gpd
+
+    df = pd.read_csv(filepath)
+
+    df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
+    df["lon"] = pd.to_numeric(df["lon"], errors="coerce")
+    df = df.dropna(subset=["lat", "lon"]).copy()
+
+    gdf = gpd.GeoDataFrame(
+        df,
+        geometry=gpd.points_from_xy(df["lon"], df["lat"]),
+        crs="EPSG:4326"
+    ).to_crs(epsg=3857)
+
+    gdf["geometry"] = gdf["geometry"].translate(xoff=x_shift, yoff=y_shift)
+
+    return df, gdf
+
+
+def plot_spatial_event_map(
+    gdf,
+    cat_color_map: dict[str, str],
+    save_path: str | None = None
+):
+    """
+    Plot the downtown structural events spatial map on a dark basemap.
+    """
+    import contextily as ctx
+    import geopandas as gpd  # noqa: F401
+
+    fig, ax = plt.subplots(figsize=(12, 9))
+    ax.set_facecolor("#0d0f14")
+
+    for cat, grp in gdf.groupby("category"):
+        grp.plot(
+            ax=ax,
+            markersize=60,
+            color=cat_color_map.get(cat, "#7a7a7a"),
+            alpha=0.9,
+            edgecolor="#2a2e3a",
+            linewidth=0.5,
+            label=cat,
+            zorder=3
+        )
+
+    xmin, ymin, xmax, ymax = gdf.total_bounds
+    pad_x = 250
+    pad_y = 250
+    ax.set_xlim(xmin - pad_x, xmax + pad_x)
+    ax.set_ylim(ymin - pad_y, ymax + pad_y)
+
+    ctx.add_basemap(
+        ax,
+        source=ctx.providers.CartoDB.DarkMatter,
+        zoom=14
+    )
+
+    ax.set_axis_off()
+    ax.set_title(
+        "Downtown Winnipeg Spatial Distribution of Structural Events [L1]",
+        fontsize=13,
+        fontweight="bold",
+        pad=12
+    )
+
+    handles = [mpatches.Patch(color=v, label=k) for k, v in cat_color_map.items()]
+    ax.legend(
+        handles=handles,
+        framealpha=0.3,
+        edgecolor="none",
+        fontsize=9,
+        loc="lower right"
+    )
+
+    plt.tight_layout()
+
+    if save_path is not None:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight", facecolor="#0d0f14")
+
+    return fig, ax
+
+
+def summarize_spatial_quadrants(df: pd.DataFrame) -> None:
+    """
+    Print east-west category counts using original longitude values.
+    """
+    df = df.copy()
+    df["east_west"] = np.where(df["lon"] > -97.145, "East of -97.145", "West of -97.145")
+
+    print("Projects per neighbourhood quadrant (by lon):")
+    print(df.groupby(["east_west", "category"]).size().to_string())
