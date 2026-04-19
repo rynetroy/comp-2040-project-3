@@ -55,6 +55,8 @@ Almost everything is happening along Portage Avenue between the old Bay building
 
 If projects finish on time and people move in, the downtown health score could reach **73 out of 100**. If construction delays by two or more years, it drops to **44**. The empty storefronts won't fill back up until the 1,600+ new residents arrive - and that won't happen before 2027.
 
+This analysis builds on a growing local conversation about downtown Winnipeg’s future. Recent reporting has increasingly framed major projects like Portage Place and the former Bay building not as a return to the old retail model, but as part of a broader shift toward housing, institutional uses, and adaptive reuse. This project adds a data-based framework for connecting those redevelopment stories to vacancy trends, business activity, spatial concentration, and delivery timing.
+
 ## About the Data
 
 Vacancy figures from CBRE market reports (4 of 10 years are estimates). Business activity before 2021 reconstructed from other sources - directional trends only. Investment amounts from press releases. Full source registry: [`data/downtown_wpg_sources_2026.csv`](data/downtown_wpg_sources_2026.csv)
