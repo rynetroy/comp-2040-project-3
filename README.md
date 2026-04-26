@@ -105,3 +105,9 @@ Vacancy figures are based on CBRE market reports, with 4 of 10 years estimated. 
 Full source registry: [`data/downtown_wpg_sources_2026.csv`](data/downtown_wpg_sources_2026.csv)
 
 **To run:** Open `notebooks/stakeholder_report.ipynb`
+
+### Technical Overview
+
+- **Pipeline:** Data cleaning with pandas → trend analysis → scenario modeling → stakeholder visualization.
+- **Key logic:** The Downtown Health Score is a constructed index combining residential growth, vacancy pressure, business activity, investment pipeline strength, and spatial concentration.
+- **Environment:** Python 3.11+, with `conda` or `venv` recommended.
