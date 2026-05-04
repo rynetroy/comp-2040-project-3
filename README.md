@@ -1,7 +1,7 @@
 ![Downtown Winnipeg - Portage Place construction, January 2026](visuals/header.png)
 
-
-# Reimagining Downtown Winnipeg: A Multi-Billion Dollar Transition From Retail to Residential (2010–2026)
+# Downtown Winnipeg Transition Analysis  
+## Reimagining Downtown Winnipeg: A Multi-Billion Dollar Transition From Retail to Residential (2010–2026)
 
 **Troy Dela Rosa**
 
@@ -9,6 +9,7 @@
 ![Pandas](https://img.shields.io/badge/pandas-%23150458.svg?style=flat-square&logo=pandas&logoColor=white)
 ![Matplotlib](https://img.shields.io/badge/Matplotlib-%23ffffff.svg?style=flat-square&logo=Matplotlib&logoColor=black)
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-%23F7931E.svg?style=flat-square&logo=scikit-learn&logoColor=white)
+![Release](https://img.shields.io/github/v/release/rynetroy/downtown-winnipeg-transition-analysis?style=flat-square)
 
 **Downtown Winnipeg isn't dying. It's being rebuilt into something different, and the results may not show up until 2027 or 2028.**
 
@@ -22,13 +23,11 @@ The cranes are real. The empty storefronts are real. The question is whether the
 
 **In short:** Downtown Winnipeg is in the messy middle of a multi-billion dollar transformation that may not be fully visible on the street for another two years.
 
----
 
 ## Business Question
 
 Is downtown Winnipeg in decline, or is it moving through a delayed transition from office and retail dependence toward residential, institutional, and mixed-use activity?
 
----
 
 ## Executive Snapshot
 
@@ -42,7 +41,6 @@ Is downtown Winnipeg in decline, or is it moving through a delayed transition fr
 
 The **Downtown Health Score** is a constructed scenario index combining business activity, residential growth, investment pipeline strength, spatial concentration, and office vacancy pressure. It is not an official city metric. It is used here as a directional way to compare whether downtown is improving, stagnating, or worsening.
 
----
 
 ## Office Vacancy Has Nearly Doubled, But the Sharpest Increase Has Slowed
 
@@ -50,7 +48,6 @@ The **Downtown Health Score** is a constructed scenario index combining business
 
 Vacancy rose from 8.7% in 2016 to 18.6% in 2025. However, the pace slowed sharply in 2024-2025, rising just 0.3 percentage points across both years. The sharpest phase of the increase appears to have slowed.
 
----
 
 ## Restaurants Are Recovering. Retail Is Not.
 
@@ -58,7 +55,6 @@ Vacancy rose from 8.7% in 2016 to 18.6% in 2025. However, the pace slowed sharpl
 
 Retail activity is down about 63% from its 2013 peak, which helps explain the visible empty storefronts. Food and service activity has recovered faster than retail since COVID. The data supports the visible recovery in downtown food, cafe, and service activity.
 
----
 
 ## The Construction Is Concentrated in Six City Blocks
 
@@ -66,7 +62,6 @@ Retail activity is down about 63% from its 2013 peak, which helps explain the vi
 
 Most major redevelopment activity is concentrated along Portage Avenue between the former Bay building and True North Square. Walk east into the Exchange District and the picture looks different. Downtown is not behaving as one uniform place. It is splitting into corridors with different levels of investment, activity, and transition pressure.
 
----
 
 ## It All Depends on Whether the Buildings Get Finished
 
@@ -76,7 +71,6 @@ If projects finish on time and people move in, the Downtown Health Score could r
 
 The empty storefronts are unlikely to fill back up before the new residential base arrives. That means the transition may not become visible at street level until 2027 or 2028.
 
----
 
 ## Implications
 
@@ -86,7 +80,6 @@ The empty storefronts are unlikely to fill back up before the new residential ba
 - Track vacancy, business openings, and residential occupancy together rather than treating each indicator separately.
 - Treat downtown as a transition system, not a single success-or-failure story.
 
----
 
 ## Final Takeaway
 
@@ -96,7 +89,6 @@ This analysis builds on a growing local conversation about downtown Winnipeg's f
 
 This project adds a data-based framework for connecting those redevelopment stories to vacancy trends, business activity, spatial concentration, and delivery timing.
 
----
 
 ## About the Data
 
@@ -104,7 +96,7 @@ Vacancy figures are based on CBRE market reports, with 4 of 10 years estimated. 
 
 Full source registry: [`data/downtown_wpg_sources_2026.csv`](data/downtown_wpg_sources_2026.csv)
 
-**To run:** Open `notebooks/stakeholder_report.ipynb`
+**To run:** Open `notebooks/downtown_winnipeg_transition_analysis.ipynb`
 
 ### Technical Overview
 
